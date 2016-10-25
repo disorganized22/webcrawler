@@ -1,6 +1,8 @@
 package com.buonaccorsi.webcrawler.service;
 
+import com.buonaccorsi.webcrawler.Internet;
 import com.buonaccorsi.webcrawler.constant.LinkCode;
+import com.buonaccorsi.webcrawler.model.Page;
 
 public class LinkResult {
 	   public String getUrl() {
@@ -12,17 +14,23 @@ public class LinkResult {
 	}
 
 	private String url;
+	 Internet iNet;
 
-	    public LinkResult(String inUrl) {
+	    public LinkResult(String inUrl,  Internet inet) {
 	        url=inUrl;
+	        iNet=inet;
 	    }
 
-	    public String getRespCode() {
+	    public Page getPage() {
+	    	Page page = new Page();
+	    	page.setAddress(url);
+	    	if (iNet.getPage(url)!=null)
+	    		page.setLinks(iNet.getPage(url).getLinks());
 	    	String respCode=LinkCode.FAILURE.getValue();
 	    	if (this.url!=null){
 	    		respCode=LinkCode.SUCCESS.getValue();
 	    	}
-	    		return respCode;
+	    		return page;
 	    	}
 	        
 	    }

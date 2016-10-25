@@ -2,52 +2,52 @@ package com.buonaccorsi.webcrawler.service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import com.buonaccorsi.webcrawler.Internet;
+import com.buonaccorsi.webcrawler.constant.LinkCode;
 import com.buonaccorsi.webcrawler.model.Page;
 
 public class CrawlService	 {
 
 	private HashMap<String, Integer> links;
 	private HashMap<String, String> results;
-	private List<Future<LinkResult>> futures;
 	
 	public CrawlService(){
 		links = new HashMap<String, Integer>();
 		results = new HashMap<String, String>();
-		futures = new ArrayList<Future<LinkResult>>();
+		
 	}
-	public void buildUrlList(Page[] pages) {
-		for (Page inPage: pages) {
-			for (String link: inPage.getLinks()) {
-				if (links.containsKey(link)){
-					links.put(link, new Integer(((Integer)links.get(link)).intValue()+1));
-				} else {
-					links.put(link, new Integer(1));				
-				}
-			}		
+	
+	public void crawl(Internet inet){
+		for (String address: inet.getAddresses()){
+			crawl(address, inet);
 		}
 	}
-	public void callPages(){
-		Set<String> sent = new HashSet<String>();
-
-		Iterator<String> linkItr = (links.keySet().iterator());
-		ExecutorService executor = Executors.newFixedThreadPool(1); 
+	public void crawl(String url,Internet inet){
 		
-		while (linkItr.hasNext()) {
-			//send calls 
-				
-				String link=(String)linkItr.next();
-				// Have one (or more) threads ready to do the async tasks. Do this during startup of your app.
-				// Fire a request.
-				futures.add(executor.submit(new LinkCall(link)));
-				sent.add(link);
+			ArrayList<String> tmpLinks = new ArrayList<String>();
+			tmpLinks.add(url);
+			callPage(tmpLinks, inet);
+			
+		
+	}
+	
+	public Page callPage(List<String> list, Internet inet){
+		Page returnPage=null;
+		HashMap<String, Future<LinkResult>> sent = new HashMap<String,Future<LinkResult>>();
+		ExecutorService executor = Executors.newFixedThreadPool(1); 
+		if (list!=null){
+		for (String link: list) {
+			//send calls if you haven't visited already 
+				if (checkUrl(link)==0){	
+					// Fire a request. in a callback method
+					sent.put(link,executor.submit(new LinkCall(link, inet)));
+				}
 		
 				// Shutdown the threads during shutdown of your app.
 			}
@@ -57,23 +57,33 @@ public class CrawlService	 {
 		// Get the response (here the current thread will block until response is returned).
 			// change the loop to use a stack to pop 
 			while(sent.size()>0){
-				for (Future<LinkResult> fut: futures){
+				Iterator<String> returns = (sent.keySet().iterator());
+				while(returns.hasNext()){
+					Future<LinkResult> fut = sent.get(returns.next());
+					
 					if (fut.isDone()) {
 						sent.remove(fut.get().getUrl());
-						results.put(fut.get().getUrl(), fut.get().getRespCode());
-					} else {
-						
-					}
+						returnPage=fut.get().getPage();
+						if (returnPage!=null){
+							results.put(fut.get().getUrl(), LinkCode.SUCCESS.getValue());
+						} else {
+							results.put(fut.get().getUrl(), LinkCode.FAILURE.getValue());
+						}
+					} 
 				}
 			}
 		// ...
-		
+		if (returnPage!=null){
+			//If the link returned contains links crawl to those pages recursively.
+			callPage(returnPage.getLinks(), inet);
+		}
 		}catch (Exception e) {
 			e.printStackTrace();
 		}
-
-		executor.shutdown();
 	
+		executor.shutdown();
+		}
+		return returnPage;
 		
 	}
 	public List<String> getSkipped() {
@@ -103,6 +113,17 @@ public class CrawlService	 {
 		}
 			
 		return result;
+	}
+
+	private int checkUrl(String link){
+		int retVal=0;
+		if (links.containsKey(link)){
+			retVal=((Integer)links.get(link)).intValue()+1;
+			links.put(link, new Integer(retVal));
+		} else {
+			links.put(link, new Integer(1));				
+		}
+		return retVal;
 	}
 
 	
